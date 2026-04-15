@@ -1,11 +1,14 @@
+import { createRequire } from 'module';
+import { fileURLToPath } from 'url';
+import path from 'path';
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const require = createRequire(import.meta.url);
+require('dotenv').config({ path: path.join(__dirname, '.env') });
+
 import http from 'http';
 import fs from 'fs';
-import path from 'path';
 import crypto from 'crypto';
 import { createClient } from 'redis';
-import { fileURLToPath } from 'url';
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const APIFY_TOKEN = process.env.APIFY_API_TOKEN;
 const REDIS_HOST  = process.env.REDIS_HOST || 'redis-17145.c239.us-east-1-2.ec2.cloud.redislabs.com';
