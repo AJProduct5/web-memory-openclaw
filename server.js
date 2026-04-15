@@ -249,6 +249,42 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  if (pathname === '/api/auth/forgot-password' && method === 'POST') {
+    try {
+      const { email } = await readBody(req);
+      if (!email) return json(res, 400, { error: 'Email required' });
+      const userStr = await redis.hGet(USERS_KEY, email.toLowerCase());
+      if (!userStr) return json(res, 200, { ok: true, resetUrl: null }); // don't reveal if email exists
+      const token = crypto.randomBytes(32).toString('hex');
+      await redis.setEx(`webmemory:reset:${token}`, 3600, email.toLowerCase());
+      const host = req.headers.host || 'localhost:3000';
+      const proto = host.includes('railway') ? 'https' : 'http';
+      const resetUrl = `${proto}://${host}/?reset=${token}`;
+      json(res, 200, { ok: true, resetUrl });
+    } catch (e) { json(res, 500, { error: e.message }); }
+    return;
+  }
+
+  if (pathname === '/api/auth/reset-password' && method === 'POST') {
+    try {
+      const { token, password } = await readBody(req);
+      if (!token || !password) return json(res, 400, { error: 'Token and password required' });
+      if (password.length < 8) return json(res, 400, { error: 'Password must be at least 8 characters' });
+      const email = await redis.get(`webmemory:reset:${token}`);
+      if (!email) return json(res, 400, { error: 'Reset link is invalid or has expired' });
+      const userStr = await redis.hGet(USERS_KEY, email);
+      if (!userStr) return json(res, 400, { error: 'Account not found' });
+      const user = JSON.parse(userStr);
+      const salt = crypto.randomBytes(16).toString('hex');
+      user.passwordHash = hashPassword(password, salt);
+      user.salt = salt;
+      await redis.hSet(USERS_KEY, email, JSON.stringify(user));
+      await redis.del(`webmemory:reset:${token}`);
+      json(res, 200, { ok: true });
+    } catch (e) { json(res, 500, { error: e.message }); }
+    return;
+  }
+
   if (pathname === '/api/auth/me' && method === 'GET') {
     const session = await getSession(req);
     if (!session) return json(res, 401, { error: 'Not authenticated' });
