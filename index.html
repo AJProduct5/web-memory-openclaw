@@ -794,6 +794,136 @@ body::before {
 :root.light .cat-tag.Product { background: #dcfce7; color: #15803d; border-color: #15803d30; }
 :root.light .history-entry.changed { background: #fff5f7; }
 :root.light .alert-entry { background: linear-gradient(135deg,#fff5f7,var(--surface)); }
+
+/* ── Auth screen ────────────────────────────────────────────────────────────── */
+#auth-screen {
+  position: fixed; inset: 0; z-index: 1000;
+  background: var(--bg);
+  display: flex; align-items: center; justify-content: center;
+  padding: 20px;
+}
+#auth-screen.hidden { display: none; }
+.auth-card {
+  background: var(--surface); border: 1px solid var(--border2);
+  border-radius: 20px; padding: 40px 36px;
+  width: 100%; max-width: 420px;
+  box-shadow: 0 32px 80px rgba(0,0,0,0.5);
+}
+.auth-logo {
+  display: flex; align-items: center; gap: 10px;
+  margin-bottom: 28px;
+}
+.auth-logo .logo-icon {
+  width: 36px; height: 36px;
+  background: linear-gradient(135deg, var(--accent), var(--cyan));
+  border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 17px; box-shadow: 0 0 20px var(--accent-glow);
+}
+.auth-logo .logo-text { font-size: 20px; font-weight: 800; letter-spacing: -0.5px; }
+.auth-title { font-size: 22px; font-weight: 800; letter-spacing: -0.5px; color: var(--text); margin-bottom: 6px; }
+.auth-sub { font-size: 14px; color: var(--text2); margin-bottom: 28px; line-height: 1.5; }
+.auth-field { margin-bottom: 14px; }
+.auth-label { font-size: 12px; font-weight: 600; color: var(--text2); margin-bottom: 5px; display: block; }
+.auth-input {
+  width: 100%;
+  background: var(--bg); border: 1px solid var(--border2);
+  border-radius: var(--radius-sm); color: var(--text);
+  font-size: 14px; padding: 11px 14px; outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.auth-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-glow); }
+.auth-input::placeholder { color: var(--text3); }
+.auth-btn {
+  width: 100%; padding: 12px; margin-top: 6px;
+  background: linear-gradient(135deg, var(--accent), #4f46e5);
+  color: #fff; border: none; border-radius: var(--radius-sm);
+  font-size: 14px; font-weight: 700; cursor: pointer;
+  box-shadow: 0 0 20px var(--accent-glow);
+  transition: all 0.15s;
+}
+.auth-btn:hover { transform: translateY(-1px); box-shadow: 0 6px 24px #6366f150; }
+.auth-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+.auth-switch {
+  text-align: center; margin-top: 20px;
+  font-size: 13px; color: var(--text3);
+}
+.auth-switch a { color: var(--accent2); cursor: pointer; font-weight: 600; text-decoration: none; }
+.auth-switch a:hover { text-decoration: underline; }
+.auth-error { font-size: 12px; color: var(--red); margin-top: 10px; text-align: center; min-height: 16px; }
+
+/* ── User chip in sidebar ────────────────────────────────────────────────────── */
+.user-chip {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 12px;
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); margin-bottom: 8px;
+  min-width: 0;
+}
+.user-avatar {
+  width: 24px; height: 24px; border-radius: 50%; flex-shrink: 0;
+  background: linear-gradient(135deg, var(--accent), var(--cyan));
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 700; color: #fff;
+}
+.user-email {
+  font-size: 11px; color: var(--text2); flex: 1; min-width: 0;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.logout-btn {
+  background: none; border: none; color: var(--text3);
+  cursor: pointer; padding: 2px 4px; border-radius: 4px;
+  font-size: 11px; flex-shrink: 0;
+  transition: color 0.15s;
+}
+.logout-btn:hover { color: var(--red); }
+
+/* ── Mobile hamburger ────────────────────────────────────────────────────────── */
+.menu-btn {
+  display: none; align-items: center; justify-content: center;
+  width: 36px; height: 36px; border-radius: 8px;
+  background: var(--surface2); border: 1px solid var(--border);
+  color: var(--text2); cursor: pointer; flex-shrink: 0;
+}
+.sidebar-overlay {
+  display: none; position: fixed; inset: 0; z-index: 199;
+  background: rgba(0,0,0,0.5);
+}
+
+/* ── Mobile responsive ──────────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .menu-btn { display: flex; }
+  .sidebar {
+    position: fixed; left: 0; top: 0; height: 100vh; z-index: 200;
+    transform: translateX(-100%); transition: transform 0.25s ease;
+  }
+  .sidebar.open { transform: translateX(0); }
+  .sidebar-overlay.open { display: block; }
+  .topbar { padding: 0 14px; }
+  .topbar-page-title { display: none; }
+  .page { padding: 16px 14px 80px; }
+  .hero { padding: 20px 0 16px; }
+  .hero h1 { font-size: clamp(18px, 5vw, 26px); letter-spacing: -0.5px; }
+  .stats-bar { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+  .cards-grid { grid-template-columns: 1fr; }
+  .add-form { flex-direction: column; }
+  .url-input { min-width: unset; width: 100%; }
+  .section-header { gap: 6px; }
+  .section-controls { gap: 4px; }
+  .btn-sm { padding: 6px 10px; font-size: 11px; }
+  .search-wrap { max-width: 160px; }
+  .badge-24h span:last-child { display: none; }
+  .share-report-btn { display: none; }
+  .card-footer { flex-direction: column; align-items: flex-start; }
+  .settings-row { flex-direction: column; align-items: flex-start; gap: 8px; }
+  .settings-input { width: 100%; }
+  .role-cards { grid-template-columns: 1fr; }
+}
+@media (max-width: 420px) {
+  .auth-card { padding: 28px 20px; }
+  .stats-bar { grid-template-columns: 1fr 1fr; }
+  .topbar-right .live-badge { display: none; }
+}
 </style>
 </head>
 <body>
@@ -823,8 +953,48 @@ body::before {
   </div>
 </div>
 
+<!-- ── Auth screen ── -->
+<div id="auth-screen">
+  <div class="auth-card">
+    <div class="auth-logo">
+      <div class="logo-icon">⚡</div>
+      <span class="logo-text">CompeteIQ</span>
+    </div>
+    <div id="auth-login-view">
+      <div class="auth-title">Welcome back</div>
+      <div class="auth-sub">Sign in to your account to continue.</div>
+      <div class="auth-field">
+        <label class="auth-label">Email</label>
+        <input class="auth-input" id="auth-email" type="email" placeholder="you@company.com" autocomplete="email" />
+      </div>
+      <div class="auth-field">
+        <label class="auth-label">Password</label>
+        <input class="auth-input" id="auth-password" type="password" placeholder="••••••••" autocomplete="current-password" />
+      </div>
+      <div class="auth-error" id="auth-error"></div>
+      <button class="auth-btn" id="auth-submit-btn" onclick="doLogin()">Sign In</button>
+      <div class="auth-switch">Don't have an account? <a onclick="switchAuthView('signup')">Sign up free</a></div>
+    </div>
+    <div id="auth-signup-view" style="display:none">
+      <div class="auth-title">Create your account</div>
+      <div class="auth-sub">Start tracking competitors in minutes.</div>
+      <div class="auth-field">
+        <label class="auth-label">Email</label>
+        <input class="auth-input" id="auth-signup-email" type="email" placeholder="you@company.com" autocomplete="email" />
+      </div>
+      <div class="auth-field">
+        <label class="auth-label">Password <span style="color:var(--text3);font-weight:400">(min 8 characters)</span></label>
+        <input class="auth-input" id="auth-signup-password" type="password" placeholder="••••••••" autocomplete="new-password" />
+      </div>
+      <div class="auth-error" id="auth-signup-error"></div>
+      <button class="auth-btn" id="auth-signup-btn" onclick="doSignup()">Create Account</button>
+      <div class="auth-switch">Already have an account? <a onclick="switchAuthView('login')">Sign in</a></div>
+    </div>
+  </div>
+</div>
+
 <!-- ── App ── -->
-<div class="app">
+<div class="app" id="main-app" style="display:none">
 
   <!-- Sidebar -->
   <aside class="sidebar">
@@ -852,6 +1022,11 @@ body::before {
       </div>
     </nav>
     <div class="sidebar-footer">
+      <div class="user-chip" id="user-chip" style="display:none">
+        <div class="user-avatar" id="user-avatar">?</div>
+        <span class="user-email" id="user-email-label"></span>
+        <button class="logout-btn" onclick="doLogout()" title="Sign out">✕</button>
+      </div>
       <div class="sidebar-stat" id="sidebar-stat">No sites tracked yet</div>
       <div class="sidebar-role-chip" id="sidebar-role-chip" onclick="showModal()" style="display:none">
         <span id="sidebar-role-label">Sales</span> ✦ change
@@ -864,6 +1039,9 @@ body::before {
     <!-- Topbar -->
     <div class="topbar">
       <div class="topbar-left">
+        <button class="menu-btn" onclick="toggleSidebar()" aria-label="Menu">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+        </button>
         <div class="search-wrap" id="search-wrap">
           <svg class="search-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
           <input type="text" class="search-input" id="search-input" placeholder="Filter sites…" oninput="onSearch()" />
@@ -1056,11 +1234,114 @@ body::before {
     </div><!-- /.page-wrap -->
   </div><!-- /.main -->
 </div><!-- /.app -->
+<div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleSidebar()"></div>
 
 <div id="toast-container"></div>
 
 <script>
 const API = '';
+
+// ── Auth ──────────────────────────────────────────────────────────────────────
+let currentUser = null;
+
+function switchAuthView(view) {
+  document.getElementById('auth-login-view').style.display  = view === 'login'  ? '' : 'none';
+  document.getElementById('auth-signup-view').style.display = view === 'signup' ? '' : 'none';
+  document.getElementById('auth-error').textContent = '';
+  document.getElementById('auth-signup-error').textContent = '';
+}
+
+async function doLogin() {
+  const email    = document.getElementById('auth-email').value.trim();
+  const password = document.getElementById('auth-password').value;
+  const errEl    = document.getElementById('auth-error');
+  const btn      = document.getElementById('auth-submit-btn');
+  errEl.textContent = '';
+  btn.disabled = true; btn.textContent = 'Signing in…';
+  try {
+    const r = await fetch(`${API}/api/auth/login`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password }),
+    });
+    const d = await r.json();
+    if (!r.ok) { errEl.textContent = d.error || 'Login failed'; return; }
+    currentUser = d.email;
+    showApp();
+  } catch { errEl.textContent = 'Network error, please try again.'; }
+  finally { btn.disabled = false; btn.textContent = 'Sign In'; }
+}
+
+async function doSignup() {
+  const email    = document.getElementById('auth-signup-email').value.trim();
+  const password = document.getElementById('auth-signup-password').value;
+  const errEl    = document.getElementById('auth-signup-error');
+  const btn      = document.getElementById('auth-signup-btn');
+  errEl.textContent = '';
+  btn.disabled = true; btn.textContent = 'Creating account…';
+  try {
+    const r = await fetch(`${API}/api/auth/signup`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password }),
+    });
+    const d = await r.json();
+    if (!r.ok) { errEl.textContent = d.error || 'Signup failed'; return; }
+    currentUser = d.email;
+    showApp();
+  } catch { errEl.textContent = 'Network error, please try again.'; }
+  finally { btn.disabled = false; btn.textContent = 'Create Account'; }
+}
+
+async function doLogout() {
+  await fetch(`${API}/api/auth/logout`, { method: 'POST' });
+  currentUser = null;
+  sites = [];
+  document.getElementById('main-app').style.display = 'none';
+  document.getElementById('auth-screen').classList.remove('hidden');
+  switchAuthView('login');
+}
+
+function showApp() {
+  document.getElementById('auth-screen').classList.add('hidden');
+  document.getElementById('main-app').style.display = '';
+  // show user chip
+  const chip = document.getElementById('user-chip');
+  const emailLabel = document.getElementById('user-email-label');
+  const avatar = document.getElementById('user-avatar');
+  if (currentUser) {
+    emailLabel.textContent = currentUser;
+    avatar.textContent = currentUser[0].toUpperCase();
+    chip.style.display = 'flex';
+  }
+  init();
+}
+
+async function checkAuth() {
+  try {
+    const r = await fetch(`${API}/api/auth/me`);
+    if (r.ok) {
+      const d = await r.json();
+      currentUser = d.email;
+      showApp();
+    }
+    // else stay on auth screen
+  } catch { /* stay on auth screen */ }
+}
+
+// ── Mobile sidebar ────────────────────────────────────────────────────────────
+function toggleSidebar() {
+  document.querySelector('.sidebar').classList.toggle('open');
+  document.getElementById('sidebar-overlay').classList.toggle('open');
+}
+
+// enter key on auth inputs
+document.addEventListener('keydown', e => {
+  if (e.key === 'Enter') {
+    const loginView  = document.getElementById('auth-login-view');
+    const signupView = document.getElementById('auth-signup-view');
+    if (loginView.style.display  !== 'none') doLogin();
+    else if (signupView.style.display !== 'none') doSignup();
+  }
+});
 
 // ── State ─────────────────────────────────────────────────────────────────────
 let sites    = [];
@@ -1822,10 +2103,14 @@ document.addEventListener('keydown', e => {
 setInterval(loadSites, 60_000);
 
 // ── Init ──────────────────────────────────────────────────────────────────────
+function init() {
+  initRole();
+  renderSettingsPage();
+  loadSites();
+}
+
 initTheme();
-initRole();
-renderSettingsPage();
-loadSites();
+checkAuth();
 </script>
 </body>
 </html>

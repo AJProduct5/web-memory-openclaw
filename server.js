@@ -11,7 +11,10 @@ const APIFY_TOKEN = process.env.APIFY_API_TOKEN;
 const REDIS_HOST  = process.env.REDIS_HOST || 'redis-17145.c239.us-east-1-2.ec2.cloud.redislabs.com';
 const REDIS_PORT  = parseInt(process.env.REDIS_PORT || '17145');
 const REDIS_PASS  = process.env.REDIS_PASS;
-const REDIS_KEY   = 'webmemory:pages';
+
+const USERS_KEY      = 'webmemory:users';
+const SESSION_PREFIX = 'webmemory:session:';
+const SESSION_TTL    = 7 * 24 * 60 * 60; // 7 days
 
 const redis = createClient({
   socket: {
@@ -27,11 +30,40 @@ redis.on('error', err => console.error('Redis error:', err));
 await redis.connect();
 console.log('Redis connected');
 
-// ── helpers ──────────────────────────────────────────────────────────────────
+// ── auth helpers ──────────────────────────────────────────────────────────────
+
+function hashPassword(password, salt) {
+  return crypto.pbkdf2Sync(password, salt, 100000, 64, 'sha512').toString('hex');
+}
+
+function parseCookies(req) {
+  const cookies = {};
+  (req.headers.cookie || '').split(';').forEach(part => {
+    const [key, ...val] = part.trim().split('=');
+    if (key) cookies[key.trim()] = decodeURIComponent(val.join('='));
+  });
+  return cookies;
+}
+
+async function getSession(req) {
+  const token = parseCookies(req).session;
+  if (!token) return null;
+  const userId = await redis.get(`${SESSION_PREFIX}${token}`);
+  if (!userId) return null;
+  return { token, userId };
+}
+
+async function requireAuth(req, res) {
+  const session = await getSession(req);
+  if (!session) { json(res, 401, { error: 'Not authenticated' }); return null; }
+  return session;
+}
+
+function siteKey(userId) { return `webmemory:pages:${userId}`; }
+
+// ── crawl helpers ─────────────────────────────────────────────────────────────
 
 async function crawl(targetUrl) {
-  // Try cheerio first (fast, low memory). Falls back to playwright:chrome for JS-heavy SPAs.
-  // memory=512 per run keeps parallel checks within Apify free-tier limits (8192MB total).
   const crawlers = [
     { type: 'cheerio',           timeout: 60,  memory: 1024 },
     { type: 'playwright:chrome', timeout: 120, memory: 1024 },
@@ -53,7 +85,6 @@ async function crawl(targetUrl) {
     console.log(`[${crawlerType}] ${targetUrl} → HTTP ${res.status}, items: ${Array.isArray(items) ? items.length : JSON.stringify(items)}`);
     if (items?.length) return items[0].markdown || items[0].text || '';
   }
-
   throw new Error('Apify returned no results.');
 }
 
@@ -67,12 +98,12 @@ function preview(content) {
 
 // ── route handlers ────────────────────────────────────────────────────────────
 
-async function getSites() {
-  const all = await redis.hGetAll(REDIS_KEY);
+async function getSites(userId) {
+  const all = await redis.hGetAll(siteKey(userId));
   return Object.values(all).map(v => JSON.parse(v));
 }
 
-async function watchSite(targetUrl) {
+async function watchSite(targetUrl, userId) {
   const content  = await crawl(targetUrl);
   const pageHash = hashContent(content);
   const record   = {
@@ -82,12 +113,12 @@ async function watchSite(targetUrl) {
     last_checked: new Date().toISOString(),
     status: 'ok',
   };
-  await redis.hSet(REDIS_KEY, targetUrl, JSON.stringify(record));
+  await redis.hSet(siteKey(userId), targetUrl, JSON.stringify(record));
   return record;
 }
 
-async function checkSite(targetUrl) {
-  const stored = await redis.hGet(REDIS_KEY, targetUrl);
+async function checkSite(targetUrl, userId) {
+  const stored = await redis.hGet(siteKey(userId), targetUrl);
   if (!stored) throw new Error(`Not watching ${targetUrl}`);
 
   const { hash: oldHash, preview: oldPreview } = JSON.parse(stored);
@@ -104,19 +135,23 @@ async function checkSite(targetUrl) {
     status: changed ? 'changed' : 'ok',
     ...(changed && { old_preview: oldPreview }),
   };
-  await redis.hSet(REDIS_KEY, targetUrl, JSON.stringify(record));
+  await redis.hSet(siteKey(userId), targetUrl, JSON.stringify(record));
   return { changed, record };
 }
 
-async function unwatchSite(targetUrl) {
-  await redis.hDel(REDIS_KEY, targetUrl);
+async function unwatchSite(targetUrl, userId) {
+  await redis.hDel(siteKey(userId), targetUrl);
 }
 
-// ── http server ───────────────────────────────────────────────────────────────
+// ── http helpers ──────────────────────────────────────────────────────────────
 
-function json(res, status, data) {
+function json(res, status, data, extraHeaders = {}) {
   const body = JSON.stringify(data);
-  res.writeHead(status, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+  res.writeHead(status, {
+    'Content-Type': 'application/json',
+    'Access-Control-Allow-Origin': '*',
+    ...extraHeaders,
+  });
   res.end(body);
 }
 
@@ -132,55 +167,133 @@ async function readBody(req) {
   });
 }
 
+// ── server ────────────────────────────────────────────────────────────────────
+
 const server = http.createServer(async (req, res) => {
   const { method, url } = req;
   const pathname = url.split('?')[0];
 
-  // CORS preflight
   if (method === 'OPTIONS') {
-    res.writeHead(204, { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'GET,POST,DELETE', 'Access-Control-Allow-Headers': 'Content-Type' });
+    res.writeHead(204, {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET,POST,DELETE',
+      'Access-Control-Allow-Headers': 'Content-Type',
+    });
     return res.end();
   }
 
-  // Serve index.html
   if (method === 'GET' && pathname === '/') {
     const html = fs.readFileSync(path.join(__dirname, 'index.html'));
     res.writeHead(200, { 'Content-Type': 'text/html' });
     return res.end(html);
   }
 
-  // API routes
+  // ── auth routes ────────────────────────────────────────────────────────────
+
+  if (pathname === '/api/auth/signup' && method === 'POST') {
+    try {
+      const { email, password } = await readBody(req);
+      if (!email || !password) return json(res, 400, { error: 'Email and password required' });
+      if (password.length < 8) return json(res, 400, { error: 'Password must be at least 8 characters' });
+
+      const existing = await redis.hGet(USERS_KEY, email.toLowerCase());
+      if (existing) return json(res, 409, { error: 'An account with this email already exists' });
+
+      const salt         = crypto.randomBytes(16).toString('hex');
+      const passwordHash = hashPassword(password, salt);
+      const userId       = crypto.randomBytes(16).toString('hex');
+
+      await redis.hSet(USERS_KEY, email.toLowerCase(), JSON.stringify({ id: userId, email, passwordHash, salt }));
+
+      const token = crypto.randomBytes(32).toString('hex');
+      await redis.setEx(`${SESSION_PREFIX}${token}`, SESSION_TTL, userId);
+
+      json(res, 200, { ok: true, email }, {
+        'Set-Cookie': `session=${token}; HttpOnly; Path=/; Max-Age=${SESSION_TTL}; SameSite=Lax`,
+      });
+    } catch (e) { json(res, 500, { error: e.message }); }
+    return;
+  }
+
+  if (pathname === '/api/auth/login' && method === 'POST') {
+    try {
+      const { email, password } = await readBody(req);
+      if (!email || !password) return json(res, 400, { error: 'Email and password required' });
+
+      const userStr = await redis.hGet(USERS_KEY, email.toLowerCase());
+      if (!userStr) return json(res, 401, { error: 'Invalid email or password' });
+
+      const user         = JSON.parse(userStr);
+      const passwordHash = hashPassword(password, user.salt);
+      if (passwordHash !== user.passwordHash) return json(res, 401, { error: 'Invalid email or password' });
+
+      const token = crypto.randomBytes(32).toString('hex');
+      await redis.setEx(`${SESSION_PREFIX}${token}`, SESSION_TTL, user.id);
+
+      json(res, 200, { ok: true, email: user.email }, {
+        'Set-Cookie': `session=${token}; HttpOnly; Path=/; Max-Age=${SESSION_TTL}; SameSite=Lax`,
+      });
+    } catch (e) { json(res, 500, { error: e.message }); }
+    return;
+  }
+
+  if (pathname === '/api/auth/logout' && method === 'POST') {
+    const cookies = parseCookies(req);
+    if (cookies.session) await redis.del(`${SESSION_PREFIX}${cookies.session}`);
+    json(res, 200, { ok: true }, {
+      'Set-Cookie': 'session=; HttpOnly; Path=/; Max-Age=0; SameSite=Lax',
+    });
+    return;
+  }
+
+  if (pathname === '/api/auth/me' && method === 'GET') {
+    const session = await getSession(req);
+    if (!session) return json(res, 401, { error: 'Not authenticated' });
+    const userStr = await redis.hGetAll(USERS_KEY);
+    const user = Object.values(userStr).map(v => JSON.parse(v)).find(u => u.id === session.userId);
+    json(res, 200, { email: user?.email || '' });
+    return;
+  }
+
+  // ── protected data routes ──────────────────────────────────────────────────
+
   if (pathname === '/api/sites' && method === 'GET') {
-    try { json(res, 200, await getSites()); }
+    const session = await requireAuth(req, res);
+    if (!session) return;
+    try { json(res, 200, await getSites(session.userId)); }
     catch (e) { json(res, 500, { error: e.message }); }
     return;
   }
 
   if (pathname === '/api/watch' && method === 'POST') {
+    const session = await requireAuth(req, res);
+    if (!session) return;
     try {
       const { url: targetUrl } = await readBody(req);
       if (!targetUrl) return json(res, 400, { error: 'url required' });
-      const record = await watchSite(targetUrl);
-      json(res, 200, record);
+      json(res, 200, await watchSite(targetUrl, session.userId));
     } catch (e) { json(res, 500, { error: e.message }); }
     return;
   }
 
   if (pathname === '/api/check' && method === 'POST') {
+    const session = await requireAuth(req, res);
+    if (!session) return;
     try {
       const { url: targetUrl } = await readBody(req);
       if (!targetUrl) return json(res, 400, { error: 'url required' });
-      const result = await checkSite(targetUrl);
-      json(res, 200, result);
+      json(res, 200, await checkSite(targetUrl, session.userId));
     } catch (e) { json(res, 500, { error: e.message }); }
     return;
   }
 
   if (pathname === '/api/unwatch' && method === 'DELETE') {
+    const session = await requireAuth(req, res);
+    if (!session) return;
     try {
       const { url: targetUrl } = await readBody(req);
       if (!targetUrl) return json(res, 400, { error: 'url required' });
-      await unwatchSite(targetUrl);
+      await unwatchSite(targetUrl, session.userId);
       json(res, 200, { ok: true });
     } catch (e) { json(res, 500, { error: e.message }); }
     return;
